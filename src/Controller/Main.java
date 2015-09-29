@@ -1,16 +1,17 @@
-package GUI;
+package Controller;
 
 /**
  *
  * @author faistaver
  */
-public class BallSimulator {
-
+public class Main {
     /**
      * @param args the command line arguments
      */
     public static void main(String[] args) {
-        MainWindow w = new MainWindow();
+        BallSimulator sim = new BallSimulator();
+        sim.simulate();
     }
-    
+
+
 }
