@@ -1,5 +1,7 @@
 package Controller;
 
+import Collision.Collision;
+import Collision.CollisionPhysics;
 import java.awt.Color;
 import java.awt.Graphics;
 import java.util.Formatter;
@@ -15,6 +17,12 @@ public class Ball {
     float radius;
     Color fillCol;
 
+    // Maintains the earliest collision detected 
+    Collision earliestCollision = new Collision();
+
+    // Working copy for computing response in intersect(ContainerBox box), to avoid repeatedly allocating objects.
+    private Collision tempCollision = new Collision();
+
     public Ball(float x, float y, float radius, float speed, float angleInDegrees, Color fillCol) {
         this.x = x;
         this.y = y;
@@ -29,36 +37,26 @@ public class Ball {
         g.fillOval((int) (x - radius), (int) (y - radius), (int) (2 * radius), (int) (2 * radius));
     }
 
-    /**
-     * Make one move, check for collision and react accordingly if collision
-     * occurs.
-     *
-     * @param box: the container (obstacle) for this ball.
-     */
-    public void moveOneStepWithCollisionDetection(Box box) {
-        float ballMinX = box.minX + radius;
-        float ballMinY = box.minY + radius;
-        float ballMaxX = box.maxX - radius;
-        float ballMaxY = box.maxY - radius;
-
-        x += velX;
-        y += velY;
-
-        if (x < ballMinX) {
-            velX = -velX;
-            x = ballMinX;
-        } else if (x > ballMaxX) {
-            velX = -velX;
-            x = ballMaxX;
+    public void intersect(Box box, float timeLimit) {
+        CollisionPhysics.pointIntersectsRectangle(x, y, velX, velY, radius,
+                box.minX, box.minY, box.maxX, box.maxY, timeLimit, tempCollision);
+        if (tempCollision.collisionTime < earliestCollision.collisionTime) {
+            earliestCollision.replace(tempCollision);
         }
+    }
 
-        if (y < ballMinY) {
-            velY = -velY;
-            y = ballMinY;
-        } else if (y > ballMaxY) {
-            velY = -velY;
-            y = ballMaxY;
+    public void update(float timeLimit) {
+        if (earliestCollision.collisionTime <= timeLimit) { // collision detected
+            //this ball collided, get new pos and speed
+            this.x = earliestCollision.getNewCoord(x, velX);
+            this.y = earliestCollision.getNewCoord(y, velY);
+            this.velX = earliestCollision.newVelX;
+            this.velY = earliestCollision.newVelY;
+        } else {
+            this.x += velX * timeLimit;
+            this.y += velY * timeLimit;
         }
+        earliestCollision.reset();
     }
 
     /**
