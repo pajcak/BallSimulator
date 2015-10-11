@@ -12,22 +12,32 @@ import java.awt.GraphicsEnvironment;
 import java.awt.Toolkit;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
+import java.awt.event.ItemEvent;
+import java.awt.event.ItemListener;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.util.Random;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.swing.JCheckBox;
 import javax.swing.JFrame;
+import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JSlider;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
 
 public class BallSimulator extends JPanel {
 
     private static final int UPDATE_RATE = 30;
     private static final float EPSILON_TIME = 1e-2f; // Threshold for zero time
 
+    private boolean paused;
+
     private Ball ball;
     private Box box;
 
+    private ControlPanel controlPanel;
     private Canvas canvas;
     private int canvasWidth;
     private int canvasHeight;
@@ -36,21 +46,24 @@ public class BallSimulator extends JPanel {
         canvasWidth = width;
         canvasHeight = height;
 
+        paused = false;
         //init the ball location at random
         Random rand = new Random();
         int radius = 50;
         int x = rand.nextInt(canvasWidth - radius * 2 - 20) + radius + 10;
         int y = rand.nextInt(canvasHeight - radius * 2 - 20) + radius + 10;
-        int speed = 20;
+        int speed = 5;
         int angleInDegree = rand.nextInt(360);
         ball = new Ball(x, y, radius, speed, angleInDegree, Color.BLUE);
 
         box = new Box(0, 0, canvasWidth, canvasHeight, Color.BLACK, Color.WHITE);
 
         canvas = new Canvas();
+        controlPanel = new ControlPanel();
 
         setLayout(new BorderLayout());
         add(canvas, BorderLayout.CENTER);
+        add(controlPanel, BorderLayout.SOUTH);
 
         //handling window resize
         addComponentListener(new ComponentAdapter() {
@@ -74,8 +87,10 @@ public class BallSimulator extends JPanel {
                     long beginTimeMilis, timeTakenMilis, timeLeftMilis;
 
                     beginTimeMilis = System.currentTimeMillis();
-                    simUpdate();
-                    repaint();
+                    if (!paused) {
+                        simUpdate();
+                        repaint();
+                    }
                     timeTakenMilis = System.currentTimeMillis() - beginTimeMilis;
 
                     timeLeftMilis = 1000L / UPDATE_RATE - timeTakenMilis;
@@ -118,10 +133,70 @@ public class BallSimulator extends JPanel {
                 repaint();
                 try {
                     Thread.sleep((long) (1000L / UPDATE_RATE * earliestCollisionTime));
-                } catch (InterruptedException ex) {}
+                } catch (InterruptedException ex) {
+                }
             }
             timeLeft -= earliestCollisionTime;
         } while (timeLeft > EPSILON_TIME);
+    }
+
+    class ControlPanel extends JPanel {
+
+        public ControlPanel() {
+            JCheckBox checkBox = new JCheckBox("Pause");
+            this.add(checkBox);
+
+            checkBox.addItemListener(new ItemListener() {
+                @Override
+                public void itemStateChanged(ItemEvent e) {
+                    paused = !paused;
+                }
+            });
+
+            int minSpeed = 2;
+            int maxSpeed = 20;
+            JSlider speedSlider = new JSlider(JSlider.HORIZONTAL, minSpeed, maxSpeed, (int) ball.getSpeed());
+            this.add(new JLabel("Speed"));
+            this.add(speedSlider);
+            speedSlider.addChangeListener(new ChangeListener() {
+                @Override
+                public void stateChanged(ChangeEvent e) {
+                    JSlider source = (JSlider) e.getSource();
+                    if (!source.getValueIsAdjusting()) {
+                        int newSpeed = (int) source.getValue();
+                        int currentSpeed = (int) ball.getSpeed();
+                        ball.velX *= (float) newSpeed / currentSpeed;
+                        ball.velY *= (float) newSpeed / currentSpeed;
+                    }
+                }
+            });
+            int minRadius = 10;
+            int maxRadius = ((canvasWidth > canvasHeight) ? canvasHeight : canvasWidth) / 2 - 8;
+            JSlider radiusSlider = new JSlider(JSlider.HORIZONTAL, minRadius, maxRadius, (int) ball.radius);
+            this.add(new JLabel("Ball radius"));
+            this.add(radiusSlider);
+            radiusSlider.addChangeListener(new ChangeListener() {
+                @Override
+                public void stateChanged(ChangeEvent e) {
+                    JSlider source = (JSlider) e.getSource();
+                    if (!source.getValueIsAdjusting()) {
+                        ball.radius = source.getValue();
+                        //reposition the ball in order to still be inside the box
+                        if (ball.x - ball.radius < box.minX) {
+                            ball.x = ball.radius + 1;
+                        } else if (ball.x + ball.radius > box.maxX) {
+                            ball.x = box.maxX - ball.radius - 1;
+                        }
+                        if (ball.y - ball.radius < box.minY) {
+                            ball.y = ball.radius + 1;
+                        } else if (ball.y + ball.radius > box.maxY) {
+                            ball.y = box.maxY - ball.radius - 1;
+                        }
+                    }
+                }
+            });
+        }
+
     }
 
     class Canvas extends JPanel {
@@ -192,7 +267,7 @@ public class BallSimulator extends JPanel {
         fullScreen.setFocusable(true);  // To receive key event
 
         fullScreen.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        fullScreen.setTitle("A World of Balls");
+        fullScreen.setTitle("Ball simulator 1.0");
         fullScreen.pack();            // Pack to preferred size
         fullScreen.setVisible(true);  // Show it
     }
